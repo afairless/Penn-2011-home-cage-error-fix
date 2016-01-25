@@ -1,0 +1,203 @@
+Sub HCerrorfix()
+' Andrew Fairless, July 2011
+
+' This program/macro detects several kinds of possible errors in the home cage scoring.  It copies
+' the original data from "Sheet1" (renamed "original data") to a new sheet ("fixed data").  It then
+' reads the data from the sheet "fixed data", detects several errors and corrects a few of them on
+' "fixed data", and then writes a table of the errors onto a new sheet ("error table").
+
+' Following is a list of the errors that this program detects.
+
+' Error #1:  All entries in the original data table should be marked with a "1" when the behavior is
+' present and with a "" (a blank) when the behavior is absent.  Any other marks are counted as an
+' error.
+
+' Error #2:  Each mouse at each time point can be engaged in a maximum of 1 social behavior.  If
+' more than 1 social behavior is marked, it is counted as an error.
+
+' Error #3:  If a mouse at a particular time point is erroneously marked as engaging in more than 1
+' social behavior and if the mouse was marked as engaging in 1 active social behavior and 1 passive
+' social behavior, then only the active behavior should be counted.  The mark for the passive
+' behavior is eliminated.
+
+' Error #4:  Each mouse at each time point can be engaged in a maximum of 1 nonsocial behavior.  If
+' more than 1 nonsocial behavior is marked, it is counted as an error.
+
+' Error #5:  After examination of the inter-rater reliability of the data, it was decided that
+' "little dig" would not be counted as a behavior.  All "little digs" are changed to "N/A".
+
+' Error #6:  If one mouse is sniffing the other mouse's nose, then the other mouse must also be
+' engaged in nose sniffing.  No other social behavior is possible.  If another behavior is marked,
+' it is counted as an error.
+
+' Error #7:  Each mouse at each time point must have at least one mark, either a behavior or "N/A".
+' An absent mark is counted as an error
+
+Const RowCount As Integer = 122
+Const ColCount As Integer = 20
+Const DataColCount As Integer = 13
+Dim FixedScoresArray(0 To RowCount, 1 To ColCount)
+Dim FixedScoresRange As Variant
+Dim RowIndex As Integer
+Dim Index As Integer
+Dim Index2 As Integer
+Dim Index3 As Integer
+Dim Counter As Integer
+Dim Temp As Integer
+
+    ActiveWorkbook.Sheets("Sheet1").Name = "original data"
+    ActiveWorkbook.Sheets("original data").Copy Before:=Sheets(2)
+    ActiveWorkbook.Sheets("original data (2)").Name = "fixed data"
+
+' Labels the columns of the error table.
+    FixedScoresArray(0, 1) = "dob"
+    FixedScoresArray(0, 2) = "home cage test date"
+    FixedScoresArray(0, 3) = "litter ordination"
+    FixedScoresArray(0, 4) = "filename"
+    FixedScoresArray(0, 5) = "strain"
+    FixedScoresArray(0, 6) = "sex"
+    FixedScoresArray(0, 7) = "age"
+    FixedScoresArray(0, 8) = "rater"
+    FixedScoresArray(0, 9) = "mouse #"
+    FixedScoresArray(0, 10) = "relative time"
+    FixedScoresArray(0, 11) = "absolute time"
+    FixedScoresArray(0, 12) = "mis-marked"
+    FixedScoresArray(0, 13) = "too many soc events"
+    FixedScoresArray(0, 14) = "passive eliminated, active kept"
+    FixedScoresArray(0, 15) = "too many nonsoc events"
+    FixedScoresArray(0, 16) = "little dig to N/A"
+    FixedScoresArray(0, 17) = "nose sniff match"
+    FixedScoresArray(0, 18) = "nothing scored"
+ 
+    ActiveWorkbook.Sheets("fixed data").Select
+    Range("C30").Select
+    For RowIndex = 1 To RowCount
+        FixedScoresArray(RowIndex, 1) = Sheets("original data").Range("B10").Value
+        FixedScoresArray(RowIndex, 2) = Sheets("original data").Range("B9").Value
+        FixedScoresArray(RowIndex, 3) = Sheets("original data").Range("B7").Value
+        FixedScoresArray(RowIndex, 4) = Sheets("original data").Range("B6").Value
+        FixedScoresArray(RowIndex, 5) = Sheets("original data").Range("B8").Value
+        FixedScoresArray(RowIndex, 7) = Sheets("original data").Range("B11").Value
+        FixedScoresArray(RowIndex, 8) = Sheets("original data").Range("B19").Value
+        FixedScoresArray(RowIndex, 9) = ActiveCell.Offset(0, -1).Value
+        FixedScoresArray(RowIndex, 10) = ActiveCell.Value
+        FixedScoresArray(RowIndex, 11) = ActiveCell.Offset(0, 2).Value
+        
+' Marks time bins in "FixedScoresArray" that are not marked with a "1" or a blank.  Also highlights the erroneous cell in red on the sheet "fixed data".
+        For Index = 1 To DataColCount
+            If (ActiveCell.Offset(0, 2 + Index).Value <> "") And (ActiveCell.Offset(0, 2 + Index).Value <> 1) Then
+                FixedScoresArray(RowIndex, 12) = 1
+                ActiveCell.Offset(0, 2 + Index).Interior.ColorIndex = 3
+            End If
+        Next
+        
+' "If" statement ensures that further error checking occurs only if behaviors have been marked correctly, that is, with only a 1 or a blank (""), as determined above.
+        If (FixedScoresArray(RowIndex, 12) <> 1) Then
+' Marks time bins in "FixedScoresArray" with too many social events.  Each mouse should have no more than 1 social event per time bin.
+            Temp = ActiveCell.Offset(0, 3).Value + ActiveCell.Offset(0, 4).Value + ActiveCell.Offset(0, 5).Value + ActiveCell.Offset(0, 6).Value + ActiveCell.Offset(0, 7).Value + ActiveCell.Offset(0, 8).Value
+            If (Temp > 1) Then
+                FixedScoresArray(RowIndex, 13) = Temp
+' If a time bin has 1 active event and 1 passive event, the passive event is eliminated.  A mouse can be engaged in only 1 social event at a time, and the most active event is the one that is counted.  Marks correction in time bins in "FixedScoresArray" and cells on the sheet "fixed data".
+                If (ActiveCell.Offset(0, 3).Value + ActiveCell.Offset(0, 4).Value + ActiveCell.Offset(0, 5).Value = 1) And (ActiveCell.Offset(0, 6).Value + ActiveCell.Offset(0, 7).Value + ActiveCell.Offset(0, 8).Value = 1) Then
+                    FixedScoresArray(RowIndex, 14) = 1
+                    If ActiveCell.Offset(0, 6).Value = 1 Then
+                        ActiveCell.Offset(0, 6).Value = ""
+                        ActiveCell.Offset(0, 6).Interior.ColorIndex = 3
+                    End If
+                    If ActiveCell.Offset(0, 7).Value = 1 Then
+                        ActiveCell.Offset(0, 7).Value = ""
+                        ActiveCell.Offset(0, 7).Interior.ColorIndex = 3
+                    End If
+                    If ActiveCell.Offset(0, 8).Value = 1 Then
+                        ActiveCell.Offset(0, 8).Value = ""
+                        ActiveCell.Offset(0, 8).Interior.ColorIndex = 3
+                    End If
+                End If
+            End If
+  
+' Marks time bins in "FixedScoresArray" with too many nonsocial events.  Each mouse should have no more than 1 nonsocial event per time bin.
+            Temp = ActiveCell.Offset(0, 9).Value + ActiveCell.Offset(0, 10).Value + ActiveCell.Offset(0, 11).Value + ActiveCell.Offset(0, 12).Value + ActiveCell.Offset(0, 13).Value + ActiveCell.Offset(0, 14).Value
+            If (Temp > 1) Then
+                FixedScoresArray(RowIndex, 15) = Temp
+            End If
+        
+' Reassigns any "little digs" to "N/A" and marks the time bin in "FixedScoresArray" for which the correction was made.  Also highlights the changed cells in red on the sheet "fixed data".
+            If ActiveCell.Offset(0, 13).Value = 1 Then
+                FixedScoresArray(RowIndex, 16) = 1
+                ActiveCell.Offset(0, 13).Value = ""
+                ActiveCell.Offset(0, 15).Value = 1
+                ActiveCell.Offset(0, 13).Interior.ColorIndex = 3
+                ActiveCell.Offset(0, 15).Interior.ColorIndex = 3
+            End If
+       
+' Marks time bins in "FixedScoresArray" where one mouse is nose sniffing but the other is not.  If either mouse is nose sniffing, both must be.  Also highlights the erroneously unmarked "nose sniffing" cell.
+            If (ActiveCell.Offset(0, 3).Value <> ActiveCell.Offset(1, 3).Value) And (RowIndex Mod 2 = 1) Then
+                FixedScoresArray(RowIndex, 17) = 1
+                FixedScoresArray(RowIndex + 1, 17) = 1
+                ActiveCell.Offset(0, 3).Interior.ColorIndex = 3
+                ActiveCell.Offset(1, 3).Interior.ColorIndex = 3
+            End If
+        
+' Marks time bins in "FixedScoresArray" where neither a behavior nor "N/A" is marked.
+            If (ActiveCell.Offset(0, 3).Value + ActiveCell.Offset(0, 4).Value + ActiveCell.Offset(0, 5).Value + ActiveCell.Offset(0, 6).Value + ActiveCell.Offset(0, 7).Value + ActiveCell.Offset(0, 8).Value + ActiveCell.Offset(0, 9).Value + ActiveCell.Offset(0, 10).Value + ActiveCell.Offset(0, 11).Value + ActiveCell.Offset(0, 12).Value + ActiveCell.Offset(0, 13).Value + ActiveCell.Offset(0, 14).Value + ActiveCell.Offset(0, 15).Value = 0) Then
+                FixedScoresArray(RowIndex, 18) = 1
+                ActiveCell.Offset(0, 3).Interior.ColorIndex = 3
+                ActiveCell.Offset(0, 4).Interior.ColorIndex = 3
+                ActiveCell.Offset(0, 5).Interior.ColorIndex = 3
+                ActiveCell.Offset(0, 6).Interior.ColorIndex = 3
+                ActiveCell.Offset(0, 7).Interior.ColorIndex = 3
+                ActiveCell.Offset(0, 8).Interior.ColorIndex = 3
+                ActiveCell.Offset(0, 9).Interior.ColorIndex = 3
+                ActiveCell.Offset(0, 10).Interior.ColorIndex = 3
+                ActiveCell.Offset(0, 11).Interior.ColorIndex = 3
+                ActiveCell.Offset(0, 12).Interior.ColorIndex = 3
+                ActiveCell.Offset(0, 13).Interior.ColorIndex = 3
+                ActiveCell.Offset(0, 14).Interior.ColorIndex = 3
+                ActiveCell.Offset(0, 15).Interior.ColorIndex = 3
+            End If
+                
+        End If
+       
+        ActiveCell.Offset(1, 0).Select
+    Next
+ 
+' Prints the error table on a new sheet named "error table".
+    ActiveWorkbook.Sheets.Add
+    ActiveWorkbook.ActiveSheet.Name = "error table"
+    Range("B10").Select
+    Set FixedScoresRange = Range(ActiveCell, ActiveCell.Offset(RowCount, ColCount - 1))
+    FixedScoresRange.Value = FixedScoresArray
+    
+    ActiveWorkbook.Sheets("error table").Select
+    Range(Range("K11"), Range("K11").Offset(RowCount - 1, 1)).NumberFormat = "mm:ss"
+
+' Prints a summary of the number of errors above the error table.
+    Range("B10:S10").Select
+    Selection.Copy
+    Range("B5").Select
+    ActiveSheet.Paste
+    Range("B11:L12").Select
+    Selection.Copy
+    Range("B6").Select
+    ActiveSheet.Paste
+    
+    Range("M11").Select
+    For Index3 = 0 To 1
+        ActiveCell.Offset(Index3, 0).Select
+        For Index = 0 To 6
+            Counter = 0
+            For Index2 = 0 To RowCount Step 2
+                If ActiveCell.Offset(Index2, Index).Value <> "" Then
+                    Counter = Counter + 1
+                End If
+'                MsgBox Index2 & " " & Index & " " & Counter
+            Next
+            ActiveCell.Offset(-5, Index).Value = Counter
+        Next
+    Next
+    
+    Sheets("fixed data").Move Before:=Sheets("error table")
+
+End Sub
+
+
